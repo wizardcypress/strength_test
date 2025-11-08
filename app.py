@@ -5,15 +5,19 @@ from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, request
 
+AUTH_KEY: str | None = None
+
 app = Flask(__name__)
 
 DATA_FILE = Path(__file__).with_name("strength.json")
-AUTH_KEY = "ThisD0y"
 
 
 @app.post("/update_daily_strength")
 def update_daily_strength() -> Response:
     auth_key = request.args.get("auth_key")
+    if AUTH_KEY is None:
+        abort(500, description="Auth key not configured")
+
     if auth_key != AUTH_KEY:
         abort(403, description="Invalid auth key")
 
@@ -35,5 +39,20 @@ def get_daily_strength() -> Response:
     return jsonify(data)
 
 
+def set_auth_key(value: str) -> None:
+    global AUTH_KEY
+    AUTH_KEY = value
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run the daily strength Flask app.")
+    parser.add_argument("--auth-key", required=True, help="Authentication key for update endpoint")
+    parser.add_argument("--host", default="0.0.0.0", help="Host interface to bind")
+    parser.add_argument("--port", type=int, default=5000, help="Port to listen on")
+    parser.add_argument("--debug", action="store_true", help="Enable Flask debug mode")
+    args = parser.parse_args()
+
+    set_auth_key(args.auth_key)
+    app.run(host=args.host, port=args.port, debug=args.debug)
