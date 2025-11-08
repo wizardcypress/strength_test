@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import csv
+from html import escape
+from io import StringIO
 from pathlib import Path
 
 from flask import Flask, Response, abort, request
@@ -33,8 +36,56 @@ def get_daily_strength() -> Response:
     if not DATA_FILE.exists():
         abort(404, description="strength data not found")
 
-    data = DATA_FILE.read_text(encoding="utf-8")
-    return Response(data, mimetype="text/plain")
+    raw_text = DATA_FILE.read_text(encoding="utf-8")
+    lines = [line for line in raw_text.splitlines() if line.strip()]
+    if not lines:
+        abort(500, description="strength data missing title")
+
+    title = lines[0]
+    csv_content = "\n".join(lines[1:])
+
+    rows: list[list[str]] = []
+    if csv_content:
+        reader = csv.reader(StringIO(csv_content))
+        rows = list(reader)
+
+    html_parts: list[str] = [
+        "<!DOCTYPE html>",
+        "<html>",
+        "<head>",
+        "<meta charset=\"utf-8\">",
+        f"<title>{escape(title)}</title>",
+        "</head>",
+        "<body>",
+        f"<h1>{escape(title)}</h1>",
+    ]
+
+    html_parts.append("<table border=\"1\" cellspacing=\"0\" cellpadding=\"4\">")
+    if rows:
+        header, *body_rows = rows
+        html_parts.append("<thead>")
+        html_parts.append("<tr>")
+        for cell in header:
+            html_parts.append(f"<th>{escape(cell)}</th>")
+        html_parts.append("</tr>")
+        html_parts.append("</thead>")
+
+        html_parts.append("<tbody>")
+        for row in body_rows:
+            html_parts.append("<tr>")
+            for cell in row:
+                html_parts.append(f"<td>{escape(cell)}</td>")
+            html_parts.append("</tr>")
+        html_parts.append("</tbody>")
+    else:
+        html_parts.append("<tbody><tr><td><em>No data available</em></td></tr></tbody>")
+
+    html_parts.append("</table>")
+    html_parts.append("</body>")
+    html_parts.append("</html>")
+
+    html_output = "".join(html_parts)
+    return Response(html_output, mimetype="text/html")
 
 
 def set_auth_key(value: str) -> None:
