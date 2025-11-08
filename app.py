@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-from flask import Flask, Response, abort, jsonify, request
+from flask import Flask, Response, abort, request
 
 AUTH_KEY: str | None = None
 
@@ -21,12 +20,12 @@ def update_daily_strength() -> Response:
     if auth_key != AUTH_KEY:
         abort(403, description="Invalid auth key")
 
-    payload = request.get_json(silent=True)
-    if payload is None:
-        abort(400, description="Request body must be valid JSON")
+    payload = request.get_data(as_text=True)
+    if not payload:
+        abort(400, description="Request body must be non-empty text")
 
-    DATA_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    return jsonify({"status": "success"})
+    DATA_FILE.write_text(payload, encoding="utf-8")
+    return Response("success", mimetype="text/plain")
 
 
 @app.get("/daily_strength/get")
@@ -34,9 +33,8 @@ def get_daily_strength() -> Response:
     if not DATA_FILE.exists():
         abort(404, description="strength data not found")
 
-    with DATA_FILE.open("r", encoding="utf-8") as fp:
-        data = json.load(fp)
-    return jsonify(data)
+    data = DATA_FILE.read_text(encoding="utf-8")
+    return Response(data, mimetype="text/plain")
 
 
 def set_auth_key(value: str) -> None:
